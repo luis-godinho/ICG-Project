@@ -4,32 +4,19 @@
 <head>
   <meta charset="UTF-8" />
   <title>Simple FPS with Three.js, Cannon-es & PointerLockControls</title>
-  <style>
-    body {
-      margin: 0;
-      overflow: hidden;
-      background: #333;
-    }
-
-    canvas {
-      display: block;
-    }
-
-    #instructions {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      color: #fff;
-      font-size: 24px;
-      cursor: pointer;
-    }
-  </style>
-  <script type="module" crossorigin src="/ICG-Project/assets/index-Yxa4wNZ3.js"></script>
+  <script type="module" crossorigin src="/ICG-Project/assets/index-B8em_67e.js"></script>
+  <link rel="stylesheet" crossorigin href="/ICG-Project/assets/index-DhBw56-r.css">
 </head>
 
 <body>
-  <div id="instructions">Click to Play</div>
+  <div id="gameStart">
+    <div id="instructions">Click to Play</div>
+    <div class="slider-container">
+      <input type="range" id="slider" min="0" max="10" value="3" step="0.1">
+      <span class="slider-value" id="sliderValue">3</span>
+    </div>
+  </div>
+
   <div id="speedDisplay" style="
   position: fixed; 
   top: 10px; left: 10px; 
