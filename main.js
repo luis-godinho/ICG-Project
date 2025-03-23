@@ -22,18 +22,30 @@ scene.add(directionalLight);
 
 // ----- POINTER LOCK CONTROLS -----
 
+let locked = true;
+
 let sensitivity = 3
 controls = new PointerLockControls(camera, renderer.domElement);
 controls.pointerSpeed = sensitivity
 scene.add(controls.getObject());
 
+
 document.getElementById("instructions").addEventListener("click", () => controls.lock());
 
 controls.addEventListener("lock", () => {
-  document.getElementById("instructions").style.display = "none";
+  document.getElementById("gameStart").style.display = "none";
+  locked = false;
+
 });
 controls.addEventListener("unlock", () => {
-  document.getElementById("instructions").style.display = "";
+  document.getElementById("gameStart").style.display = "";
+  locked = true;
+});
+
+document.getElementById("slider").addEventListener("input", () => {
+  document.getElementById("sliderValue").textContent = parseFloat(document.getElementById("slider").value).toFixed(1);
+  sensitivity = parseFloat(document.getElementById("slider").value).toFixed(1);
+  controls.pointerSpeed = sensitivity
 });
 
 // ----- CANNON-ES PHYSICS -----
@@ -96,80 +108,78 @@ let speed = baseSpeed;
 
 playerBody.addEventListener("collide", () => canJump = true);
 
-const timeStep = 1 / 120;
+const timeStep = 1 / 110;
 function animate() {
   requestAnimationFrame(animate);
 
-  // Movement
-  const forward = new THREE.Vector3();
-  controls.getDirection(forward);
-  forward.y = 0;
-  forward.normalize();
+  if (!locked) {
 
-  const right = new THREE.Vector3();
-  right.crossVectors(camera.up, forward).normalize();
+    // Movement
+    const forward = new THREE.Vector3();
+    controls.getDirection(forward);
+    forward.y = 0;
+    forward.normalize();
 
-  const moveDirection = new THREE.Vector3();
+    const right = new THREE.Vector3();
+    right.crossVectors(camera.up, forward).normalize();
+
+    const moveDirection = new THREE.Vector3();
 
 
-  // **No Speed from W Only**
-  if (keysPressed["KeyW"]) {
-    moveDirection.add(forward);
-  }
-  if (keysPressed["KeyS"]) {
-    moveDirection.sub(forward);
-  }
-
-  // **Strafing**
-  if (keysPressed["KeyA"]) {
-    moveDirection.add(right);
-    if (!canJump) {
-      speed += 0.002; // Gain speed mid-air
+    // **No Speed from W Only**
+    if (keysPressed["KeyW"]) {
       moveDirection.add(forward);
     }
-  }
-  if (keysPressed["KeyD"]) {
-    moveDirection.sub(right);
-    if (!canJump) {
-      speed += 0.002; // Gain speed mid-air
-      moveDirection.add(forward);
+    if (keysPressed["KeyS"]) {
+      moveDirection.sub(forward);
     }
+
+    // **Strafing**
+    if (keysPressed["KeyA"]) {
+      moveDirection.add(right);
+      if (!canJump) {
+        speed += 0.002; // Gain speed mid-air
+        moveDirection.add(forward);
+      }
+    }
+    if (keysPressed["KeyD"]) {
+      moveDirection.sub(right);
+      if (!canJump) {
+        speed += 0.002; // Gain speed mid-air
+        moveDirection.add(forward);
+      }
+    }
+
+    if (canJump && !keysPressed["Space"]) {
+      speed = baseSpeed;
+      playerBody.velocity.x = moveDirection.x * speed;
+      playerBody.velocity.z = moveDirection.z * speed;
+    }  // Reset speed when touching ground
+
+    if (moveDirection.lengthSq() > 0) {
+      console.log(moveDirection)
+      moveDirection.normalize();
+      playerBody.velocity.x = moveDirection.x * speed;
+      playerBody.velocity.z = moveDirection.z * speed;
+    }
+
+    // Jumping
+    if (keysPressed["Space"] && canJump) {
+      playerBody.velocity.y = jumpVelocity;
+      canJump = false;
+    }
+
+    world.step(timeStep);
+    controls.getObject().position.copy(playerBody.position);
+    playerMesh.position.copy(playerBody.position);
+
+    const currSpeed = Math.sqrt(
+      playerBody.velocity.x ** 2 + playerBody.velocity.z ** 2
+    );
+
+    // Update speed display
+    document.getElementById("speedDisplay").innerText = `Speed: ${currSpeed.toFixed(2)}`;
   }
-
-  if (canJump && !keysPressed["Space"]) {
-    speed = baseSpeed;
-    playerBody.velocity.x = moveDirection.x * speed;
-    playerBody.velocity.z = moveDirection.z * speed;
-  }  // Reset speed when touching ground
-
-  if (moveDirection.lengthSq() > 0) {
-    moveDirection.normalize();
-    playerBody.velocity.x = moveDirection.x * speed;
-    playerBody.velocity.z = moveDirection.z * speed;
-  }
-  // else if (!canJump) {
-  //   // Maintain momentum if airborne
-  //   playerBody.velocity.x *= 1; // Small air friction to prevent infinite speed gain
-  //   playerBody.velocity.z *= 1;
-  // }
-  // Jumping
-  if (keysPressed["Space"] && canJump) {
-    playerBody.velocity.y = jumpVelocity;
-    canJump = false;
-  }
-
-
-  const currSpeed = Math.sqrt(
-    playerBody.velocity.x ** 2 + playerBody.velocity.z ** 2
-  );
-
-  // Update speed display
-  document.getElementById("speedDisplay").innerText = `Speed: ${currSpeed.toFixed(2)}`;
-
-
-  world.step(timeStep);
-  controls.getObject().position.copy(playerBody.position);
-  playerMesh.position.copy(playerBody.position);
 
   renderer.render(scene, camera);
 }
