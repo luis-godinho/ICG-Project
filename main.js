@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 import * as CANNON from 'cannon-es';
+import { loadLevel1 } from './js/level1.js'
 
 // ----- THREE.JS SETUP -----
 let scene, camera, renderer, controls;
@@ -51,36 +52,16 @@ document.getElementById("slider").addEventListener("input", () => {
 // ----- CANNON-ES PHYSICS -----
 const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -9.82, 0) });
 
-function createPlatform(size, position) {
-  const platformShape = new CANNON.Box(new CANNON.Vec3(size[0] / 2, 0.5, size[1] / 2));
-  const platformBody = new CANNON.Body({ mass: 0, shape: platformShape, position: new CANNON.Vec3(...position) });
-  world.addBody(platformBody);
-
-  const platformGeometry = new THREE.BoxGeometry(size[0], 1, size[1]);
-  const platformMaterial = new THREE.MeshStandardMaterial({ color: 0x555555 });
-  const platformMesh = new THREE.Mesh(platformGeometry, platformMaterial);
-  platformMesh.position.set(...position);
-  scene.add(platformMesh);
-}
-
-const platforms = [];
-platforms.push(createPlatform([10, 10], [0, 0, 0]));  // Start platform
-platforms.push(createPlatform([5, 5], [10, 2, -5]));  // Small jump
-platforms.push(createPlatform([5, 5], [15, 4, -10])); // Medium jump
-platforms.push(createPlatform([5, 5], [20, 6, -15])); // Higher jump
-platforms.push(createPlatform([5, 5], [25, 8, -20])); // Even higher
-platforms.push(createPlatform([10, 10], [35, 10, -25])); // Goal platform
-
 // Player setup
 const playerRadius = 1;
-const sphereShape = new CANNON.Sphere(playerRadius);
+const cylinderShape = new CANNON.Cylinder(playerRadius, playerRadius, 5);
 const playerBody = new CANNON.Body({
-  mass: 80,
-  shape: sphereShape,
-  position: new CANNON.Vec3(0, 5, 0),
+  mass: 20,
+  shape: cylinderShape,
+  position: new CANNON.Vec3(-37, 5, 37),
   fixedRotation: true,
 });
-playerBody.linearDamping = 0.1; // Less friction for bhop
+playerBody.linearDamping = 0; // Less friction for bhop
 world.addBody(playerBody);
 
 const playerMesh = new THREE.Mesh(
@@ -100,19 +81,61 @@ window.addEventListener("resize", () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
+loadLevel1(scene, world, playerBody)
+
 // Bunny Hop + Strafing Mechanics
 let canJump = false;
 const jumpVelocity = 5;
 const baseSpeed = 5;
 let speed = baseSpeed;
+let colision = false
 
-playerBody.addEventListener("collide", () => canJump = true);
+const contactNormal = new CANNON.Vec3(); // Normal in the contact, pointing *out* of whatever the player touched
+const yAxis = new CANNON.Vec3(0, 1, 0);
+const xAxis = new CANNON.Vec3(1, 0, 0)
+const zAxis = new CANNON.Vec3(0, 0, 1)
+playerBody.addEventListener("collide", (event) => {
+  const { contact } = event;
+
+
+  if (contact.bi.id === playerBody.id) {
+    contact.ni.negate(contactNormal);
+  } else {
+    contactNormal.copy(contact.ni);
+  }
+
+  if (contactNormal.dot(yAxis) > 0.5) {
+    canJump = true;
+  }
+  // console.log(contactNormal)
+  if (contactNormal.dot(xAxis) > 0.5) {
+    // playerBody.position.x += 0.1
+    playerBody.velocity.set(0, 0, 0)
+    colision = true
+  } else if (contactNormal.dot(xAxis) <= 0.5 && contactNormal.dot(xAxis) != 0) {
+    // playerBody.position.x -= 0.1
+    playerBody.velocity.set(0, 0, 0)
+    colision = true
+  }
+
+  if (contactNormal.dot(zAxis) > 0.5) {
+    // playerBody.position.z += 0.1
+    playerBody.velocity.set(0, 0, 0)
+    colision = true
+  } else if (contactNormal.dot(zAxis) <= 0.5 && contactNormal.dot(zAxis) != 0) {
+    // playerBody.position.z -= 0.1
+    playerBody.velocity.set(0, 0, 0)
+    colision = true
+  }
+
+});
 
 const timeStep = 1 / 110;
 function animate() {
   requestAnimationFrame(animate);
 
   if (!locked) {
+
 
     // Movement
     const forward = new THREE.Vector3();
@@ -121,10 +144,11 @@ function animate() {
     forward.normalize();
 
     const right = new THREE.Vector3();
-    right.crossVectors(camera.up, forward).normalize();
+    right.crossVectors(camera.up, forward);
 
     const moveDirection = new THREE.Vector3();
 
+    // if (!colision) {
 
     // **No Speed from W Only**
     if (keysPressed["KeyW"]) {
@@ -138,26 +162,23 @@ function animate() {
     if (keysPressed["KeyA"]) {
       moveDirection.add(right);
       if (!canJump) {
-        speed += 0.002; // Gain speed mid-air
+        speed += 0.012; // Gain speed mid-air
         moveDirection.add(forward);
       }
     }
     if (keysPressed["KeyD"]) {
       moveDirection.sub(right);
       if (!canJump) {
-        speed += 0.002; // Gain speed mid-air
+        speed += 0.012; // Gain speed mid-air
         moveDirection.add(forward);
       }
     }
 
     if (canJump && !keysPressed["Space"]) {
       speed = baseSpeed;
-      playerBody.velocity.x = moveDirection.x * speed;
-      playerBody.velocity.z = moveDirection.z * speed;
-    }  // Reset speed when touching ground
+    }  // Reset speed only if jumping is possible
 
     if (moveDirection.lengthSq() > 0) {
-      console.log(moveDirection)
       moveDirection.normalize();
       playerBody.velocity.x = moveDirection.x * speed;
       playerBody.velocity.z = moveDirection.z * speed;
@@ -169,13 +190,17 @@ function animate() {
       canJump = false;
     }
 
-    world.step(timeStep);
-    controls.getObject().position.copy(playerBody.position);
-    playerMesh.position.copy(playerBody.position);
 
+    // }
     const currSpeed = Math.sqrt(
       playerBody.velocity.x ** 2 + playerBody.velocity.z ** 2
     );
+    controls.getObject().position.copy(playerBody.position);
+    playerMesh.position.copy(playerBody.position);
+
+    playerBody.position.y += 0.001
+    world.step(timeStep);
+
 
     // Update speed display
     document.getElementById("speedDisplay").innerText = `Speed: ${currSpeed.toFixed(2)}`;
