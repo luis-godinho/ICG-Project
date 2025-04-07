@@ -1,4 +1,3 @@
-
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 import * as CANNON from 'cannon-es';
@@ -24,6 +23,7 @@ scene.add(directionalLight);
 // ----- POINTER LOCK CONTROLS -----
 
 let locked = true;
+let noclip = false;
 
 let sensitivity = 3
 controls = new PointerLockControls(camera, renderer.domElement);
@@ -72,7 +72,23 @@ scene.add(playerMesh);
 
 // Input Handling
 const keysPressed = {};
-document.addEventListener("keydown", (e) => keysPressed[e.code] = true);
+document.addEventListener("keydown", (e) => {
+  keysPressed[e.code] = true;
+
+  if (e.code === "KeyN") {
+    noclip = !noclip;
+    if (noclip) {
+      // disable physics by zeroing velocity and disabling gravity
+      document.getElementById("coord").style.display = "block";
+      playerBody.velocity.set(0, 0, 0);
+      playerBody.type = CANNON.Body.STATIC;
+    } else {
+      document.getElementById("coord").style.display = "none";
+      playerBody.type = CANNON.Body.DYNAMIC;
+      playerBody.velocity.set(0, 0, 0);
+    }
+  }
+});
 document.addEventListener("keyup", (e) => keysPressed[e.code] = false);
 
 window.addEventListener("resize", () => {
@@ -106,105 +122,150 @@ playerBody.addEventListener("collide", (event) => {
 
   if (contactNormal.dot(yAxis) > 0.5) {
     canJump = true;
+    colision = false
   }
   // console.log(contactNormal)
   if (contactNormal.dot(xAxis) > 0.5) {
-    // playerBody.position.x += 0.1
-    playerBody.velocity.set(0, 0, 0)
+    playerBody.position.x += 0.1
+    // playerBody.velocity.set(0, 0, 0)
     colision = true
   } else if (contactNormal.dot(xAxis) <= 0.5 && contactNormal.dot(xAxis) != 0) {
-    // playerBody.position.x -= 0.1
-    playerBody.velocity.set(0, 0, 0)
+    playerBody.position.x -= 0.1
+    // playerBody.velocity.set(0, 0, 0)
     colision = true
   }
 
   if (contactNormal.dot(zAxis) > 0.5) {
-    // playerBody.position.z += 0.1
-    playerBody.velocity.set(0, 0, 0)
+    playerBody.position.z += 0.1
+    // playerBody.velocity.set(0, 0, 0)
     colision = true
   } else if (contactNormal.dot(zAxis) <= 0.5 && contactNormal.dot(zAxis) != 0) {
-    // playerBody.position.z -= 0.1
-    playerBody.velocity.set(0, 0, 0)
+    playerBody.position.z -= 0.1
+    // playerBody.velocity.set(0, 0, 0)
     colision = true
   }
 
 });
 
 const timeStep = 1 / 110;
+const maxSpeed = 19
 function animate() {
   requestAnimationFrame(animate);
 
-  if (!locked) {
+  if (!locked && !colision) {
 
+    if (noclip) {
+      const moveSpeed = 0.15;
+      const move = new THREE.Vector3();
 
-    // Movement
-    const forward = new THREE.Vector3();
-    controls.getDirection(forward);
-    forward.y = 0;
-    forward.normalize();
+      const forward = new THREE.Vector3();
+      controls.getDirection(forward);
+      forward.normalize();
 
-    const right = new THREE.Vector3();
-    right.crossVectors(camera.up, forward);
+      const right = new THREE.Vector3();
+      right.crossVectors(forward, camera.up).normalize();
 
-    const moveDirection = new THREE.Vector3();
+      if (keysPressed["KeyW"]) move.add(forward);
+      if (keysPressed["KeyS"]) move.sub(forward);
+      if (keysPressed["KeyA"]) move.sub(right);
+      if (keysPressed["KeyD"]) move.add(right);
+      if (keysPressed["Space"]) move.y += 1;
+      if (keysPressed["ShiftLeft"]) move.y -= 1;
 
-    // if (!colision) {
+      move.normalize();
+      move.multiplyScalar(moveSpeed);
 
-    // **No Speed from W Only**
-    if (keysPressed["KeyW"]) {
-      moveDirection.add(forward);
-    }
-    if (keysPressed["KeyS"]) {
-      moveDirection.sub(forward);
-    }
+      controls.getObject().position.add(move);
+      playerBody.position.copy(controls.getObject().position);
+      playerMesh.position.copy(playerBody.position);
 
-    // **Strafing**
-    if (keysPressed["KeyA"]) {
-      moveDirection.add(right);
-      if (!canJump) {
-        speed += 0.012; // Gain speed mid-air
+      document.getElementById("speedDisplay").innerText = `Noclip: ON`;
+    } else {
+      // Movement
+      const forward = new THREE.Vector3();
+      controls.getDirection(forward);
+      forward.y = 0;
+      forward.normalize();
+
+      const right = new THREE.Vector3();
+      right.crossVectors(camera.up, forward);
+
+      const moveDirection = new THREE.Vector3();
+
+      // if (!colision) {
+
+      // **No Speed from W Only**
+      if (keysPressed["KeyW"]) {
         moveDirection.add(forward);
       }
-    }
-    if (keysPressed["KeyD"]) {
-      moveDirection.sub(right);
-      if (!canJump) {
-        speed += 0.012; // Gain speed mid-air
-        moveDirection.add(forward);
+      if (keysPressed["KeyS"]) {
+        moveDirection.sub(forward);
       }
+
+      // **Strafing**
+      if (keysPressed["KeyA"]) {
+        moveDirection.add(right);
+        if (!canJump) {
+          speed += 0.012; // Gain speed mid-air
+          moveDirection.add(forward);
+        }
+      }
+      if (keysPressed["KeyD"]) {
+        moveDirection.sub(right);
+        if (!canJump) {
+          speed += 0.012; // Gain speed mid-air
+          moveDirection.add(forward);
+        }
+      }
+
+      if (canJump && !keysPressed["Space"]) {
+        speed = baseSpeed;
+      }  // Reset speed only if jumping is possible
+
+
+      if (moveDirection.lengthSq() > 0) {
+        moveDirection.normalize();
+        if (speed > maxSpeed) {
+          speed = maxSpeed;
+        }
+
+        if (colision) {
+          speed = 0
+        }
+        playerBody.velocity.x = moveDirection.x * speed;
+        playerBody.velocity.z = moveDirection.z * speed;
+        // Cap the speed to a specific value
+        // if (Math.abs(playerBody.velocity.x) > maxSpeed) {
+        //   playerBody.velocity.x = playerBody.velocity.x / Math.abs(playerBody.velocity.x) * maxSpeed
+        // }
+        // if (Math.abs(playerBody.velocity.z) > 8) {
+        //   playerBody.velocity.z = playerBody.velocity.z / Math.abs(playerBody.velocity.z) * maxSpeed
+        // }
+      }
+
+      // Jumping
+      if (keysPressed["Space"] && canJump) {
+        playerBody.velocity.y = jumpVelocity;
+        canJump = false;
+      }
+      const currSpeed = Math.sqrt(
+        playerBody.velocity.x ** 2 + playerBody.velocity.z ** 2
+      );
+
+      controls.getObject().position.copy(playerBody.position);
+      playerMesh.position.copy(playerBody.position);
+
+      playerBody.position.y += 0.001
+      world.step(timeStep);
+
+
+      // Update speed display
+      document.getElementById("speedDisplay").innerText = `Speed: ${currSpeed.toFixed(2)}`;
     }
-
-    if (canJump && !keysPressed["Space"]) {
-      speed = baseSpeed;
-    }  // Reset speed only if jumping is possible
-
-    if (moveDirection.lengthSq() > 0) {
-      moveDirection.normalize();
-      playerBody.velocity.x = moveDirection.x * speed;
-      playerBody.velocity.z = moveDirection.z * speed;
-    }
-
-    // Jumping
-    if (keysPressed["Space"] && canJump) {
-      playerBody.velocity.y = jumpVelocity;
-      canJump = false;
-    }
-
-
-    // }
-    const currSpeed = Math.sqrt(
-      playerBody.velocity.x ** 2 + playerBody.velocity.z ** 2
-    );
-    controls.getObject().position.copy(playerBody.position);
-    playerMesh.position.copy(playerBody.position);
-
-    playerBody.position.y += 0.001
-    world.step(timeStep);
-
-
-    // Update speed display
-    document.getElementById("speedDisplay").innerText = `Speed: ${currSpeed.toFixed(2)}`;
   }
+
+  document.getElementById("coord").innerText = `x: ${playerBody.position.x.toFixed(0)} y: ${playerBody.position.y.toFixed(0)} z: ${playerBody.position.z.toFixed(0)} `;
+
 
   renderer.render(scene, camera);
 }
