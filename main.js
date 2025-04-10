@@ -152,7 +152,7 @@ const maxSpeed = 19
 function animate() {
   requestAnimationFrame(animate);
 
-  if (!locked || !colision) {
+  if (!locked && !colision) {
 
     if (noclip) {
       const moveSpeed = 0.15;
