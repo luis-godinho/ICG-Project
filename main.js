@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 import * as CANNON from 'cannon-es';
 import { loadLevel1 } from './js/level1.js'
+import { loadLevel2 } from './js/level2.js';
 
 // ----- THREE.JS SETUP -----
 let scene, camera, renderer, controls;
@@ -97,7 +98,7 @@ window.addEventListener("resize", () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-loadLevel1(scene, world, playerBody)
+loadLevel2(scene, world, playerBody)
 
 // Bunny Hop + Strafing Mechanics
 let canJump = false;
@@ -124,7 +125,6 @@ playerBody.addEventListener("collide", (event) => {
     canJump = true;
     colision = false
   }
-  // console.log(contactNormal)
   if (contactNormal.dot(xAxis) > 0.5) {
     playerBody.position.x += 0.1
     // playerBody.velocity.set(0, 0, 0)
@@ -151,8 +151,9 @@ const timeStep = 1 / 110;
 const maxSpeed = 19
 function animate() {
   requestAnimationFrame(animate);
+  scene.userData.update()
 
-  if (!locked && !colision) {
+  if (!locked) {
 
     if (noclip) {
       const moveSpeed = 0.15;
