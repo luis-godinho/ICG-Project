@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 import * as CANNON from 'cannon-es';
-import { loadLevel1 } from './js/level1.js'
+import { loadLevel } from './js/level.js';
 
 // ----- THREE.JS SETUP -----
 let scene, camera, renderer, controls;
@@ -9,6 +9,8 @@ scene = new THREE.Scene();
 scene.background = new THREE.Color(0xaaaaaa);
 
 camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(63, 62, 14)
+camera.lookAt(new THREE.Vector3(40, 0, 40))
 renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
@@ -24,6 +26,7 @@ scene.add(directionalLight);
 
 let locked = true;
 let noclip = false;
+let hasWon = false;
 
 let sensitivity = 3
 controls = new PointerLockControls(camera, renderer.domElement);
@@ -31,7 +34,7 @@ controls.pointerSpeed = sensitivity
 scene.add(controls.getObject());
 
 
-document.getElementById("instructions").addEventListener("click", () => controls.lock());
+document.getElementById("playButton").addEventListener("click", () => controls.lock());
 
 controls.addEventListener("lock", () => {
   document.getElementById("gameStart").style.display = "none";
@@ -39,9 +42,12 @@ controls.addEventListener("lock", () => {
 
 });
 controls.addEventListener("unlock", () => {
-  document.getElementById("gameStart").style.display = "";
+  if (!hasWon) {
+    document.getElementById("gameStart").style.display = "";
+  }
   locked = true;
 });
+
 
 document.getElementById("slider").addEventListener("input", () => {
   document.getElementById("sliderValue").textContent = parseFloat(document.getElementById("slider").value).toFixed(1);
@@ -97,7 +103,32 @@ window.addEventListener("resize", () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-loadLevel1(scene, world, playerBody)
+function showWinScreen() {
+  document.exitPointerLock();
+  hasWon = true; // <--- Add this
+
+  const winScreen = document.getElementById("winScreen");
+  if (!winScreen) return;
+
+  winScreen.style.display = "flex";
+
+  const button = document.getElementById("playAgainButton");
+  button.onclick = () => {
+    winScreen.style.display = "none";
+    hasWon = false;
+    restartGame();
+  };
+
+  document.getElementById("gameStart").style.display = "none";
+}
+
+function restartGame() {
+  // Remove all meshes from the scene
+  location.reload()
+  loadLevel(scene, world, playerBody, showWinScreen)
+}
+
+loadLevel(scene, world, playerBody, showWinScreen)
 
 // Bunny Hop + Strafing Mechanics
 let canJump = false;
@@ -124,7 +155,6 @@ playerBody.addEventListener("collide", (event) => {
     canJump = true;
     colision = false
   }
-  // console.log(contactNormal)
   if (contactNormal.dot(xAxis) > 0.5) {
     playerBody.position.x += 0.1
     // playerBody.velocity.set(0, 0, 0)
@@ -151,8 +181,9 @@ const timeStep = 1 / 110;
 const maxSpeed = 19
 function animate() {
   requestAnimationFrame(animate);
+  scene.userData.update()
 
-  if (!locked && !colision) {
+  if (!locked) {
 
     if (noclip) {
       const moveSpeed = 0.15;
