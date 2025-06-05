@@ -145,6 +145,18 @@ canvas {
   box-shadow: 0 2px 4px rgba(0,0,0,0.5);
 }
 
+.space {
+  width: 50px;
+  height: 30px;
+  background-color: #444;
+  color: white;
+  border-radius: 4px;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
 .mouse-hint {
   display: flex;
   flex-direction: column;

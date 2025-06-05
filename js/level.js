@@ -1,7 +1,7 @@
 import * as CANNON from 'cannon-es';
 import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
-
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 export function loadLevel(scene, world, playerBody, showWinScreen) {
   const cellSize = 10;
@@ -10,6 +10,8 @@ export function loadLevel(scene, world, playerBody, showWinScreen) {
   const mazeHeight = 10;
   const rotatingObstacles = [];
   const textureLoader = new THREE.TextureLoader()
+  const gltfLoader = new GLTFLoader();
+  const cactusPositions = [];
 
   function createPlatform(size, position) {
     const platformShape = new CANNON.Box(new CANNON.Vec3(size[0] / 2, 0.5, size[1] / 2));
@@ -17,8 +19,9 @@ export function loadLevel(scene, world, playerBody, showWinScreen) {
     world.addBody(platformBody);
 
     const platformGeometry = new THREE.BoxGeometry(size[0], 1, size[1]);
-    const platformMaterial = new THREE.MeshStandardMaterial({
+    const platformMaterial = new THREE.MeshPhongMaterial({
       color: 0x555555,
+      shininess: 20,
       map: textureLoader.load("/ICG-Project/models/BrickWall11_1K_BaseColor.png"),
       normalMap: textureLoader.load("/ICG-Project/models/BrickWall11_1K_Normal.png"),
       aoMap: textureLoader.load("/ICG-Project/models/BrickWall11_1K_AO.png"),
@@ -34,16 +37,17 @@ export function loadLevel(scene, world, playerBody, showWinScreen) {
   function createWall(x, y, z, scaleX, scaleY, scaleZ) {
     const wallMaterial = new THREE.MeshPhongMaterial({
       color: 0x888888,
-      shininess: 1,
-      map: textureLoader.load("/ICG-Project/models/Granite_base.png"),
-      normalMap: textureLoader.load("/ICG-Project/models/Granite_normal.png"),
-      roughnessMap: textureLoader.load("/ICG-Project/models/Granite_rough.png")
+      shininess: 20,
+      map: textureLoader.load("/ICG-Project/models/brick_color.jpg"),
+      normalMap: textureLoader.load("/ICG-Project/models/brick_normal.jpg"),
+      aoMap: textureLoader.load("/ICG-Project/models/BrickWall11_1K_AO.jpg"),
+      roughnessMap: textureLoader.load("/ICG-Project/models/brick_rough.jpg")
     });
-    const wallGeometry = new THREE.BoxGeometry(scaleX, scaleY, scaleZ);
+    const wallGeometry = new THREE.BoxGeometry(scaleX, 5, scaleZ);
     const wallMesh = new THREE.Mesh(wallGeometry, wallMaterial);
     wallMesh.castShadow = true;
     wallMesh.receiveShadow = true;
-    wallMesh.position.set(x, y, z);
+    wallMesh.position.set(x, y - 5, z);
     scene.add(wallMesh);
 
     const wallShape = new CANNON.Box(new CANNON.Vec3(scaleX / 2, scaleY / 2, scaleZ / 2));
@@ -182,7 +186,9 @@ export function loadLevel(scene, world, playerBody, showWinScreen) {
 
     // — THREE.js mesh —
     const geometry = new THREE.BoxGeometry(width, height, depth, 1, 1, 1);
-    const material = new THREE.MeshStandardMaterial({ color: 0xff2222 });
+    const material = new THREE.MeshStandardMaterial({
+      map: textureLoader.load("/ICG-Project/models/barrier.jpg"),
+    });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(...position);
     mesh.castShadow = true;
@@ -254,6 +260,7 @@ export function loadLevel(scene, world, playerBody, showWinScreen) {
 
     }
 
+
     const [startX, startZ] = path[0];
     playerBody.position.set(startX * cellSize, 5, startZ * cellSize);
 
@@ -263,11 +270,50 @@ export function loadLevel(scene, world, playerBody, showWinScreen) {
     playerBody.position.set(path[0][0] * cellSize, 5, path[0][1] * cellSize);
   }
 
+
+  function placeCacti(maze, path) {
+    const pathSet = new Set(path.map(([x, y]) => `${x},${y}`));
+
+    for (let y = 0; y < maze.length; y++) {
+      for (let x = 0; x < maze[0].length; x++) {
+        // Skip path cells
+        if (pathSet.has(`${x},${y}`)) continue;
+        if (Math.random() < 0.1) { // 10% chance to spawn cactus in each empty cell
+          const worldX = x * cellSize;
+          const worldZ = y * cellSize;
+          const pos = [worldX, 0, worldZ];
+
+          cactusPositions.push(pos);
+
+          gltfLoader.load('/ICG-Project/models/cactus1.glb', (gltf) => {
+            const model = gltf.scene;
+            model.scale.set(0.2, 0.2, 0.2);
+            model.position.set(...pos);
+            model.traverse(child => {
+              if (child.isMesh) {
+                child.material = new THREE.MeshStandardMaterial({ color: 0x228b22 });
+                child.castShadow = true;
+                child.receiveShadow = true;
+              }
+            });
+            scene.add(model);
+          });
+        }
+      }
+    }
+  }
+
+  const texture = textureLoader.load("/ICG-Project/models/sand.jpg");
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(10, 10); // Increase values to make texture smaller (repeat more)
+
   // STATIC FLOOR
   const floorGeometry = new THREE.BoxGeometry(150, 2, 150);
   const floorMaterial = new THREE.MeshPhongMaterial({
     color: 0x888888,
-    shininess: 1,
+    shininess: 10,
+    map: texture
   });
   const floorMesh = new THREE.Mesh(floorGeometry, floorMaterial);
   floorMesh.position.set(50, -1, 50);
@@ -290,13 +336,14 @@ export function loadLevel(scene, world, playerBody, showWinScreen) {
   }
 
   // LIGHT & SKY
-  const spotlight = new THREE.SpotLight(0xffffff, 1, 0, Math.PI / 2, 0, 0);
+  const spotlight = new THREE.SpotLight(0xffffff, 2, 0, Math.PI / 2, 0, 0);
   spotlight.position.set(-30, 66, -42);
+  spotlight.castShadow = true
   scene.add(spotlight);
 
   const sky = new Sky();
-  sky.scale.setScalar(450000);
-  const phi = THREE.MathUtils.degToRad(45);
+  sky.scale.setScalar(45000);
+  const phi = THREE.MathUtils.degToRad(0);
   const theta = THREE.MathUtils.degToRad(180);
   const sunPosition = new THREE.Vector3().setFromSphericalCoords(1, phi, theta);
   sky.material.uniforms.sunPosition.value = sunPosition;
@@ -307,6 +354,7 @@ export function loadLevel(scene, world, playerBody, showWinScreen) {
   const path = solveMaze(maze);
   placePlatformsFromPath(path);
   createWallsAroundPath(path, maze);
+  placeCacti(maze, path)
 
   // ROTATION LOOP: Call this inside your animation loop
   scene.userData.update = function () {
